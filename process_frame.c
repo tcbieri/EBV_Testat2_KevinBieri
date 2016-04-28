@@ -19,16 +19,21 @@ void ChangeDetection();
 void SetBackground();
 void Erode_3x3(int InIndex, int OutIndex);
 void Dilate_3x3(int InIndex, int OutIndex);
+void DetectRegions();
+void DrawBoundingBoxes();
 
 const int nc = OSC_CAM_MAX_IMAGE_WIDTH;
 const int nr = OSC_CAM_MAX_IMAGE_HEIGHT;
 const int Border = 1;
 const int frgLimit = 100;
-
-int TextColor;
+const int MinArea = 500;
 float bgrImg[IMG_SIZE];
 const float avgFac = 0.99;
 
+struct OSC_PICTURE Pic;
+struct OSC_VIS_REGIONS ImgRegions;
+
+int TextColor;
 
 void ResetProcess()
 {
@@ -44,7 +49,7 @@ void ResetProcess()
 
 void ProcessFrame()
 {
-	char Text[] = "hallo world";
+	//char Text[] = "hallo world";
 	//initialize counters
 	if(data.ipc.state.nStepCounter == 1) {
 		//use for initialization; only done in first step
@@ -52,7 +57,7 @@ void ProcessFrame()
 		TextColor = CYAN;
 	} else {
 		//example for copying sensor image to background image
-		memcpy(data.u8TempImage[BACKGROUND], data.u8TempImage[SENSORIMG], IMG_SIZE);
+		//memcpy(data.u8TempImage[BACKGROUND], data.u8TempImage[SENSORIMG], IMG_SIZE);
 
 		//example for drawing output
 		//draw line
@@ -66,6 +71,10 @@ void ProcessFrame()
 		ChangeDetection();
 		Erode_3x3(THRESHOLD, INDEX0);
 		Dilate_3x3(INDEX0, THRESHOLD);
+
+		DetectRegions();
+		DrawBoundingBoxes();
+
 	}
 }
 
@@ -157,3 +166,50 @@ void Dilate_3x3(int InIndex, int OutIndex) {
 }
 
 
+void DetectRegions()
+{
+	Pic.data = data.u8TempImage[INDEX0];
+	Pic.width = nc;
+	Pic.height = nr;
+	Pic.type = OSC_PICTURE_BINARY;
+
+	int i;
+	for(i = 0; i<IMG_SIZE; i++)
+	{
+		data.u8TempImage[INDEX0][i] = data.u8TempImage[THRESHOLD][i] ? 1 : 0;
+	}
+
+
+	OscVisLabelBinary(&Pic, &ImgRegions);
+	OscVisGetRegionProperties(&ImgRegions);
+
+	OscVisGetRegionProperties(&ImgRegions);
+
+
+}
+
+
+void DrawBoundingBoxes()
+{
+	uint16 o;
+	for(o = 0; o < ImgRegions.noOfObjects; o++)
+	{
+		if(ImgRegions.objects[o].area > MinArea)
+		{
+			DrawBoundingBox(ImgRegions.objects[o].bboxLeft,
+							ImgRegions.objects[o].bboxTop,
+							ImgRegions.objects[o].bboxRight,
+							ImgRegions.objects[o].bboxBottom, false, GREEN);
+
+			uint16 centerX = (ImgRegions.objects[o].bboxLeft + ImgRegions.objects[o].bboxRight) / 2;
+			uint16 centerY = (ImgRegions.objects[o].bboxTop + ImgRegions.objects[o].bboxBottom) / 2;
+
+
+			DrawLine(centerX - 5, centerY , centerX +5, centerY, RED);
+			DrawLine(centerX, centerY - 5, centerX, centerY + 5, RED);
+
+		}
+	}
+
+
+}
